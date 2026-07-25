@@ -170,6 +170,19 @@ async def vapi_function_server(request: Request):
             except Exception:
                 parameters = {}
 
+    # Format 4: Vapi new format {"type":"tool-calls","toolCallList":[...]}
+    if not func_name:
+        tool_call_list = body.get("toolCallList", [])
+        if not tool_call_list:
+            tool_call_list = body.get("tool_call_list", [])
+        for tc in tool_call_list:
+            fn = tc.get("function", {})
+            if fn.get("name") == "book_appointment":
+                func_name = fn.get("name", "")
+                args = fn.get("arguments", {})
+                parameters = json.loads(args) if isinstance(args, str) else args
+                break
+
     print(f"🔧 Function: {func_name}")
     print(f"   Parameters: {json.dumps(parameters, indent=2)}")
 
