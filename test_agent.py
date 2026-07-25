@@ -13,7 +13,7 @@ init_db()
 
 def simulate_call():
     print("=" * 50)
-    print("🧪 AI Voice Agent — Local Test (Groq)")
+    print("🧪 AI Voice Agent — Local Test (Groq + MediBook Clinic)")
     print("   Type your message. Type 'quit' to exit.")
     print("=" * 50)
 

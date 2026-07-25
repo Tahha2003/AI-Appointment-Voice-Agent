@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AI Voice Agent - Appointment Booking",
-    description="CareCloud-style AI receptionist that books appointments via voice",
+    description="MediBook Clinic AI receptionist that books appointments via voice",
     version="1.0.0",
     lifespan=lifespan
 )

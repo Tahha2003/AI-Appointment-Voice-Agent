@@ -17,7 +17,7 @@ print(f"🤖 Using Groq ({MODEL}) - free tier")
 # ─────────────────────────────────────────
 # SYSTEM PROMPT
 # ─────────────────────────────────────────
-SYSTEM_PROMPT = """You are a friendly AI receptionist for CareCloud Medical Clinic.
+SYSTEM_PROMPT = """You are a friendly AI receptionist for MediBook Clinic.
 Your job is to help patients book appointments.
 
 Follow this exact conversation flow:

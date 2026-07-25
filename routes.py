@@ -48,12 +48,12 @@ async def vapi_webhook(request: Request):
     if event_type == "assistant-request":
         return JSONResponse({
             "assistant": {
-                "firstMessage": "Hello! Welcome to CareCloud Medical Clinic. I'm your AI receptionist. How can I help you today?",
+                "firstMessage": "Hello! Welcome to MediBook Clinic. I'm your AI receptionist. How can I help you today?",
                 "model": {
                     "provider": "openai",
                     "model": "gpt-4o-mini",
                     "systemPrompt": (
-                        "You are a friendly AI receptionist for CareCloud Medical Clinic. "
+                        "You are a friendly AI receptionist for MediBook Clinic. "
                         "Help patients book appointments. Keep responses under 2 sentences. "
                         "Ask: name, phone, reason, date, time. Confirm then book."
                     ),
