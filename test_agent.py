@@ -1,5 +1,5 @@
 """
-Local test script — run this to test the AI without Vapi or phone calls.
+Local test script — test the AI in terminal without Vapi or phone calls.
 Usage:  python test_agent.py
 """
 import os
@@ -9,18 +9,18 @@ load_dotenv()
 from database import init_db
 from agent import chat
 
-init_db()  # create tables if they don't exist
+init_db()
 
 def simulate_call():
     print("=" * 50)
-    print("🧪 AI Voice Agent — Local Test")
+    print("🧪 AI Voice Agent — Local Test (Groq)")
     print("   Type your message. Type 'quit' to exit.")
     print("=" * 50)
 
     history = []
-    booking_done = False   # track if appointment was already booked
+    booking_done = False
 
-    # First message — trigger AI greeting
+    # AI greeting
     first_result = chat([{"role": "user", "content": "Hello"}])
     print(f"\n🤖 AI: {first_result['reply']}")
     history.append({"role": "user", "content": "Hello"})
@@ -41,26 +41,19 @@ def simulate_call():
 
         if result["function_called"] and not booking_done:
             booking_done = True
-            print(f"\n✅ [Appointment Booked!]")
-            print(f"   Patient : {result['function_args'].get('patient_name')}")
-            print(f"   Phone   : {result['function_args'].get('phone')}")
-            print(f"   Reason  : {result['function_args'].get('reason')}")
-            print(f"   Date    : {result['function_args'].get('date')}")
-            print(f"   Time    : {result['function_args'].get('time')}")
-            print(f"   Doctor  : {result['function_args'].get('doctor', 'Dr. Smith')}")
+            args = result["function_args"]
+            print(f"\n✅ Appointment Booked!")
+            print(f"   Patient : {args.get('patient_name')}")
+            print(f"   Phone   : {args.get('phone')}")
+            print(f"   Reason  : {args.get('reason')}")
+            print(f"   Date    : {args.get('date')}")
+            print(f"   Time    : {args.get('time')}")
+            print(f"   Doctor  : Dr. Smith")
 
         history.append({"role": "assistant", "content": result["reply"]})
 
 if __name__ == "__main__":
-    provider = os.getenv("AI_PROVIDER", "groq").lower()
-    if provider == "openai" and not os.getenv("OPENAI_API_KEY"):
-        print("❌ OPENAI_API_KEY not set in .env")
-        exit(1)
-    if provider == "gemini" and not os.getenv("GEMINI_API_KEY"):
-        print("❌ GEMINI_API_KEY not set in .env")
-        exit(1)
-    if provider == "groq" and not os.getenv("GROQ_API_KEY"):
+    if not os.getenv("GROQ_API_KEY"):
         print("❌ GROQ_API_KEY not set in .env")
         exit(1)
-
     simulate_call()
