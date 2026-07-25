@@ -131,7 +131,14 @@ async def vapi_webhook(request: Request):
 # When Vapi's model calls book_appointment, 
 # it posts to this URL (configured in assistant tools above)
 # ─────────────────────────────────────────────
-@router.post("/vapi-function")
+@router.post("/vapi-debug")
+async def vapi_debug(request: Request):
+    """Temporary debug endpoint — logs exactly what Vapi sends."""
+    body = await request.json()
+    print(f"🔍 VAPI DEBUG BODY: {json.dumps(body, indent=2)}")
+    return JSONResponse({"received": body})
+
+
 async def vapi_function_server(request: Request):
     try:
         body = await request.json()
