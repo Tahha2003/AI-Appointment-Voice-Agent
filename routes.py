@@ -76,7 +76,7 @@ async def vapi_webhook(request: Request):
                                 }
                             },
                             "server": {
-                                "url": "https://your-app-url.onrender.com/vapi-function"
+                                "url": "https://ai-appointment-voice-agent.onrender.com/vapi-function"
                             }
                         }
                     ]
