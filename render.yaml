@@ -1,14 +1,17 @@
-# Render deployment config
-# Push this file to GitHub, then connect repo on render.com
-
 services:
   - type: web
-    name: ai-voice-agent
+    name: ai-appointment-voice-agent
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: OPENAI_API_KEY
-        sync: false   # you will enter this manually in Render dashboard
+        sync: false
       - key: VAPI_API_KEY
         sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: groq
+      - key: DB_PATH
+        value: /tmp/appointments.db

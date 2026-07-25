@@ -175,6 +175,17 @@ async def vapi_function_server(request: Request):
 
     if func_name == "book_appointment":
         from database import save_appointment
+
+        # Validate all required fields are present and non-empty
+        required = ["patient_name", "phone", "reason", "date", "time"]
+        missing = [f for f in required if not parameters.get(f, "").strip()]
+
+        if missing:
+            print(f"⚠️ Missing fields: {missing} — not saving")
+            return JSONResponse({
+                "result": f"Please collect the following information first: {', '.join(missing)}"
+            })
+
         appointment_id = save_appointment(
             patient_name=parameters.get("patient_name", "Unknown"),
             phone=parameters.get("phone", ""),

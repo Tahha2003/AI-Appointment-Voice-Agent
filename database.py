@@ -1,7 +1,9 @@
 import sqlite3
 import os
 
-DB_PATH = "appointments.db"
+# On Render, use /tmp for writable storage
+# Locally, use current directory
+DB_PATH = os.getenv("DB_PATH", "appointments.db")
 
 def get_connection():
     """Get a database connection."""
