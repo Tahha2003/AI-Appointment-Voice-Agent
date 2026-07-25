@@ -137,14 +137,42 @@ async def vapi_function_server(request: Request):
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    
+
+    print(f"📥 Vapi-function raw body: {json.dumps(body)[:500]}")
+
+    # Vapi sends tool calls in different formats — handle all of them
+    func_name = ""
+    parameters = {}
+
+    # Format 1: {"message": {"type": "function-call", "functionCall": {...}}}
     message = body.get("message", {})
-    func = message.get("functionCall", {})
-    func_name = func.get("name", "")
-    parameters = func.get("parameters", {})
-    
-    print(f"🔧 Function server called: {func_name}")
-    
+    if message:
+        func = message.get("functionCall", {})
+        func_name = func.get("name", "")
+        parameters = func.get("parameters", {})
+
+    # Format 2: {"toolCallList": [{"function": {"name": ..., "arguments": ...}}]}
+    if not func_name:
+        tool_calls = body.get("toolCallList", [])
+        if tool_calls:
+            fn = tool_calls[0].get("function", {})
+            func_name = fn.get("name", "")
+            args = fn.get("arguments", {})
+            parameters = json.loads(args) if isinstance(args, str) else args
+
+    # Format 3: direct {"name": ..., "parameters": ...}
+    if not func_name:
+        func_name = body.get("name", "")
+        parameters = body.get("parameters", body.get("arguments", {}))
+        if isinstance(parameters, str):
+            try:
+                parameters = json.loads(parameters)
+            except Exception:
+                parameters = {}
+
+    print(f"🔧 Function: {func_name}")
+    print(f"   Parameters: {json.dumps(parameters, indent=2)}")
+
     if func_name == "book_appointment":
         from database import save_appointment
         appointment_id = save_appointment(
@@ -158,7 +186,7 @@ async def vapi_function_server(request: Request):
         return JSONResponse({
             "result": f"Your appointment has been confirmed! Booking ID: {appointment_id}. See you soon."
         })
-    
+
     return JSONResponse({"result": "Unknown function"})
 
 
