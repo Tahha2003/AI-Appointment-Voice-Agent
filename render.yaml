@@ -10,4 +10,4 @@ services:
       - key: VAPI_API_KEY
         sync: false
       - key: DB_PATH
-        value: /tmp/patients.db
+        value: /opt/render/project/src/patients.db
