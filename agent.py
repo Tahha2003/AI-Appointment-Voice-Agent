@@ -22,9 +22,22 @@ from database import (
 
 load_dotenv()
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 MODEL = "llama-3.3-70b-versatile"
-print(f"🤖 Using Groq ({MODEL}) - free tier")
+_client = None  # lazy init — avoids crash on startup if key not yet loaded
+
+def _get_client():
+    """Return Groq client, initializing on first use."""
+    global _client
+    if _client is None:
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "GROQ_API_KEY is not set. "
+                "Add it to your .env file or Render environment variables."
+            )
+        _client = Groq(api_key=api_key)
+        print(f"🤖 Using Groq ({MODEL}) - free tier")
+    return _client
 
 
 # ─────────────────────────────────────────────────────────────
@@ -408,7 +421,7 @@ def chat(conversation_history: list) -> dict:
 
     tool_choice = "auto" if active_tools else "none"
 
-    response = client.chat.completions.create(
+    response = _get_client().chat.completions.create(
         model=MODEL,
         messages=messages,
         tools=active_tools,
@@ -447,7 +460,7 @@ def chat(conversation_history: list) -> dict:
         messages.append(assistant_tool_msg)
         messages.append(tool_result_msg)
 
-        final = client.chat.completions.create(
+        final = _get_client().chat.completions.create(
             model=MODEL,
             messages=messages,
             temperature=0.4,
