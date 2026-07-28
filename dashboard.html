@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MediBook — Patient Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #f0f4f8; color: #1a202c; }
+  header { background: #2b6cb0; color: white; padding: 18px 32px;
+           display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 1.4rem; font-weight: 700; }
+  header span { font-size: 0.85rem; opacity: 0.8; }
+  .tabs { display: flex; gap: 2px; padding: 16px 32px 0;
+          border-bottom: 2px solid #bee3f8; }
+  .tab { padding: 10px 22px; cursor: pointer; border-radius: 6px 6px 0 0;
+         font-weight: 600; font-size: 0.9rem; color: #4a5568;
+         background: #e2e8f0; border: none; transition: all .2s; }
+  .tab.active { background: white; color: #2b6cb0;
+                border-bottom: 2px solid white; margin-bottom: -2px; }
+  .tab:hover:not(.active) { background: #cbd5e0; }
+  main { padding: 24px 32px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr));
+           gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: white; border-radius: 10px; padding: 20px;
+               box-shadow: 0 1px 3px rgba(0,0,0,.1); text-align: center; }
+  .stat-card .num { font-size: 2rem; font-weight: 700; color: #2b6cb0; }
+  .stat-card .lbl { font-size: 0.8rem; color: #718096; margin-top: 4px; }
+  .card { background: white; border-radius: 10px; padding: 20px;
+          box-shadow: 0 1px 3px rgba(0,0,0,.1); margin-bottom: 16px; }
+  .card-header { display: flex; justify-content: space-between;
+                 align-items: center; margin-bottom: 16px; }
+  .card-header h2 { font-size: 1rem; font-weight: 700; color: #2d3748; }
+  input[type=text] { padding: 8px 12px; border: 1px solid #e2e8f0;
+                     border-radius: 6px; font-size: 0.875rem; width: 260px; }
+  input[type=text]:focus { outline: none; border-color: #4299e1;
+                           box-shadow: 0 0 0 3px rgba(66,153,225,.2); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th { text-align: left; padding: 10px 12px; background: #f7fafc;
+       color: #4a5568; font-weight: 600; border-bottom: 2px solid #e2e8f0;
+       white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid #edf2f7; vertical-align: top; }
+  tr:hover td { background: #f7fafc; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px;
+           font-size: 0.75rem; font-weight: 600; }
+  .badge-green  { background: #c6f6d5; color: #276749; }
+  .badge-blue   { background: #bee3f8; color: #2b6cb0; }
+  .badge-yellow { background: #fefcbf; color: #744210; }
+  .badge-gray   { background: #e2e8f0; color: #4a5568; }
+  .loading { text-align: center; padding: 40px; color: #a0aec0; font-size: 0.9rem; }
+  .empty   { text-align: center; padding: 40px; color: #a0aec0; }
+  .refresh-btn { padding: 7px 16px; background: #2b6cb0; color: white;
+                 border: none; border-radius: 6px; cursor: pointer;
+                 font-size: 0.85rem; font-weight: 600; }
+  .refresh-btn:hover { background: #2c5282; }
+  .api-url { font-size: 0.75rem; color: #718096; font-family: monospace;
+             background: #edf2f7; padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏥 MediBook Clinic — Patient Dashboard</h1>
+  <span id="api-label" class="api-url"></span>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('patients')">👤 Patients</button>
+  <button class="tab" onclick="switchTab('appointments')">📅 Appointments</button>
+  <button class="tab" onclick="switchTab('transcripts')">📝 Transcripts</button>
+</div>
+
+<main>
+  <!-- STATS ROW -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="num" id="stat-patients">—</div>
+      <div class="lbl">Registered Patients</div>
+    </div>
+    <div class="stat-card">
+      <div class="num" id="stat-appointments">—</div>
+      <div class="lbl">Appointments</div>
+    </div>
+    <div class="stat-card">
+      <div class="num" id="stat-transcripts">—</div>
+      <div class="lbl">Call Transcripts</div>
+    </div>
+  </div>
+
+  <!-- PATIENTS PANEL -->
+  <div id="panel-patients" class="panel active">
+    <div class="card">
+      <div class="card-header">
+        <h2>All Patients</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="search-patients" placeholder="Search by last name…"
+                 oninput="filterPatients()" />
+          <button class="refresh-btn" onclick="loadPatients()">↻ Refresh</button>
+        </div>
+      </div>
+      <div id="patients-body"><div class="loading">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- APPOINTMENTS PANEL -->
+  <div id="panel-appointments" class="panel">
+    <div class="card">
+      <div class="card-header">
+        <h2>All Appointments</h2>
+        <button class="refresh-btn" onclick="loadAppointments()">↻ Refresh</button>
+      </div>
+      <div id="appointments-body"><div class="loading">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- TRANSCRIPTS PANEL -->
+  <div id="panel-transcripts" class="panel">
+    <div class="card">
+      <div class="card-header">
+        <h2>Call Transcripts</h2>
+        <button class="refresh-btn" onclick="loadTranscripts()">↻ Refresh</button>
+      </div>
+      <div id="transcripts-body"><div class="loading">Loading…</div></div>
+    </div>
+  </div>
+</main>
+
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────
+const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+  ? "http://localhost:8000"
+  : "https://ai-appointment-voice-agent.onrender.com";
+
+document.getElementById("api-label").textContent = API;
+
+// ── TAB SWITCHING ─────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((t, i) => {
+    t.classList.toggle("active", ["patients","appointments","transcripts"][i] === name);
+  });
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+  document.getElementById("panel-" + name).classList.add("active");
+  if (name === "patients")     loadPatients();
+  if (name === "appointments") loadAppointments();
+  if (name === "transcripts")  loadTranscripts();
+}
+
+// ── HELPERS ───────────────────────────────────────────────
+function badge(text, color) {
+  return `<span class="badge badge-${color}">${text}</span>`;
+}
+function fmt(val) { return val || '<span style="color:#a0aec0">—</span>'; }
+function shortId(id) { return id ? id.substring(0, 8) + "…" : "—"; }
+function fmtDate(iso) {
+  if (!iso) return "—";
+  return iso.replace("T", " ").replace("Z", " UTC").substring(0, 19);
+}
+
+// ── PATIENTS ─────────────────────────────────────────────
+let allPatients = [];
+
+async function loadPatients() {
+  document.getElementById("patients-body").innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res  = await fetch(`${API}/patients`);
+    const json = await res.json();
+    allPatients = json.data?.patients || [];
+    document.getElementById("stat-patients").textContent = json.data?.total || 0;
+    renderPatients(allPatients);
+  } catch(e) {
+    document.getElementById("patients-body").innerHTML =
+      `<div class="empty">⚠️ Could not connect to API (${API})</div>`;
+  }
+}
+
+function filterPatients() {
+  const q = document.getElementById("search-patients").value.toLowerCase();
+  renderPatients(allPatients.filter(p =>
+    (p.last_name || "").toLowerCase().includes(q) ||
+    (p.first_name || "").toLowerCase().includes(q)
+  ));
+}
+
+function renderPatients(patients) {
+  if (!patients.length) {
+    document.getElementById("patients-body").innerHTML =
+      '<div class="empty">No patients found.</div>';
+    return;
+  }
+  const rows = patients.map(p => `
+    <tr>
+      <td><code style="font-size:.75rem">${shortId(p.patient_id)}</code></td>
+      <td><strong>${p.first_name} ${p.last_name}</strong></td>
+      <td>${fmt(p.date_of_birth)}</td>
+      <td>${fmt(p.sex)}</td>
+      <td>${fmt(p.phone_number)}</td>
+      <td>${fmt(p.city)}, ${fmt(p.state)}</td>
+      <td>${fmt(p.insurance_provider)}</td>
+      <td>${fmt(p.preferred_language)}</td>
+      <td>${fmtDate(p.created_at)}</td>
+    </tr>`).join("");
+  document.getElementById("patients-body").innerHTML = `
+    <table>
+      <thead><tr>
+        <th>ID</th><th>Name</th><th>DOB</th><th>Sex</th>
+        <th>Phone</th><th>Location</th><th>Insurance</th>
+        <th>Language</th><th>Registered</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── APPOINTMENTS ──────────────────────────────────────────
+async function loadAppointments() {
+  document.getElementById("appointments-body").innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res  = await fetch(`${API}/appointments`);
+    const json = await res.json();
+    const appts = json.data?.appointments || [];
+    document.getElementById("stat-appointments").textContent = json.data?.total || 0;
+    if (!appts.length) {
+      document.getElementById("appointments-body").innerHTML =
+        '<div class="empty">No appointments scheduled yet.</div>';
+      return;
+    }
+    const statusColor = { scheduled: "blue", completed: "green", cancelled: "gray" };
+    const rows = appts.map(a => `
+      <tr>
+        <td><code style="font-size:.75rem">${shortId(a.appointment_id)}</code></td>
+        <td><strong>${fmt(a.first_name)} ${fmt(a.last_name)}</strong></td>
+        <td>${badge(a.appointment_type, "blue")}</td>
+        <td>${fmt(a.preferred_date)}</td>
+        <td>${fmt(a.preferred_time)}</td>
+        <td>${fmt(a.doctor)}</td>
+        <td>${badge(a.status, statusColor[a.status] || "gray")}</td>
+        <td>${fmtDate(a.created_at)}</td>
+      </tr>`).join("");
+    document.getElementById("appointments-body").innerHTML = `
+      <table>
+        <thead><tr>
+          <th>ID</th><th>Patient</th><th>Type</th><th>Date</th>
+          <th>Time</th><th>Doctor</th><th>Status</th><th>Scheduled At</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch(e) {
+    document.getElementById("appointments-body").innerHTML =
+      `<div class="empty">⚠️ Could not connect to API</div>`;
+  }
+}
+
+// ── TRANSCRIPTS ───────────────────────────────────────────
+async function loadTranscripts() {
+  document.getElementById("transcripts-body").innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const res  = await fetch(`${API}/transcripts`);
+    const json = await res.json();
+    const txs  = json.data?.transcripts || [];
+    document.getElementById("stat-transcripts").textContent = json.data?.total || 0;
+    if (!txs.length) {
+      document.getElementById("transcripts-body").innerHTML =
+        '<div class="empty">No call transcripts yet.</div>';
+      return;
+    }
+    const rows = txs.map(t => `
+      <tr>
+        <td><code style="font-size:.75rem">${shortId(t.transcript_id)}</code></td>
+        <td>${fmt(t.first_name)} ${fmt(t.last_name)}</td>
+        <td>${badge(t.language || "English", "yellow")}</td>
+        <td>${fmt(t.summary)}</td>
+        <td>${t.duration_secs ? t.duration_secs + "s" : "—"}</td>
+        <td>${fmt(t.outcome)}</td>
+        <td>${fmtDate(t.created_at)}</td>
+      </tr>`).join("");
+    document.getElementById("transcripts-body").innerHTML = `
+      <table>
+        <thead><tr>
+          <th>ID</th><th>Patient</th><th>Language</th><th>Summary</th>
+          <th>Duration</th><th>Outcome</th><th>Date</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch(e) {
+    document.getElementById("transcripts-body").innerHTML =
+      `<div class="empty">⚠️ Could not connect to API</div>`;
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────
+loadPatients();
+setInterval(() => {
+  const active = document.querySelector(".tab.active");
+  if (active) active.click();
+}, 30000); // auto-refresh every 30 seconds
+</script>
+</body>
+</html>

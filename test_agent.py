@@ -42,6 +42,10 @@ def simulate_call():
 
         print(f"\n🤖 AI: {result['reply']}")
 
+        # CRITICAL: add tool messages to history so AI knows registration is done
+        for extra_msg in result.get("history_additions", []):
+            history.append(extra_msg)
+
         if result["function_called"] and not registration_done:
             fn = result["function_name"]
             fn_result = result.get("function_result", {})
