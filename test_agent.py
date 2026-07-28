@@ -1,5 +1,7 @@
 """
-Local test script — test the AI in terminal without Vapi or phone calls.
+Local test script — test patient registration AI in terminal.
+No phone call or Vapi needed.
+
 Usage:  python test_agent.py
 """
 import os
@@ -11,14 +13,15 @@ from agent import chat
 
 init_db()
 
+
 def simulate_call():
-    print("=" * 50)
-    print("🧪 AI Voice Agent — Local Test (Groq + MediBook Clinic)")
+    print("=" * 55)
+    print("🧪 MediBook Voice Agent — Patient Registration Test")
     print("   Type your message. Type 'quit' to exit.")
-    print("=" * 50)
+    print("=" * 55)
 
     history = []
-    booking_done = False
+    registration_done = False
 
     # AI greeting
     first_result = chat([{"role": "user", "content": "Hello"}])
@@ -39,18 +42,29 @@ def simulate_call():
 
         print(f"\n🤖 AI: {result['reply']}")
 
-        if result["function_called"] and not booking_done:
-            booking_done = True
-            args = result["function_args"]
-            print(f"\n✅ Appointment Booked!")
-            print(f"   Patient : {args.get('patient_name')}")
-            print(f"   Phone   : {args.get('phone')}")
-            print(f"   Reason  : {args.get('reason')}")
-            print(f"   Date    : {args.get('date')}")
-            print(f"   Time    : {args.get('time')}")
-            print(f"   Doctor  : Dr. Smith")
+        if result["function_called"] and not registration_done:
+            fn = result["function_name"]
+            fn_result = result.get("function_result", {})
+
+            if fn == "register_patient" and fn_result.get("success"):
+                registration_done = True
+                args = result["function_args"]
+                print(f"\n✅ Patient Registered!")
+                print(f"   Patient ID : {fn_result.get('patient_id', 'N/A')}")
+                print(f"   Name       : {args.get('first_name')} {args.get('last_name')}")
+                print(f"   DOB        : {args.get('date_of_birth')}")
+                print(f"   Sex        : {args.get('sex')}")
+                print(f"   Phone      : {args.get('phone_number')}")
+                print(f"   Address    : {args.get('address_line_1')}, {args.get('city')}, {args.get('state')} {args.get('zip_code')}")
+
+            elif fn == "register_patient" and fn_result.get("duplicate_found"):
+                print(f"\n⚠️  Duplicate: {fn_result.get('message')}")
+
+            elif fn == "update_patient" and fn_result.get("success"):
+                print(f"\n✅ Patient Updated! ID: {fn_result.get('patient_id')}")
 
         history.append({"role": "assistant", "content": result["reply"]})
+
 
 if __name__ == "__main__":
     if not os.getenv("GROQ_API_KEY"):
