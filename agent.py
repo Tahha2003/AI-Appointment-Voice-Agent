@@ -66,6 +66,10 @@ Before saving, READ BACK all collected information clearly and ask:
 If they want to correct something, collect ONLY that specific field again, then re-confirm.
 If confirmed → call the register_patient function.
 
+CRITICAL: Once register_patient has been called successfully (success=true), do NOT call it again under ANY circumstances.
+After successful registration, ONLY say the goodbye message and end the conversation.
+If the caller says "yes" or "correct" or anything after a successful registration, just say goodbye.
+
 == VALIDATION RULES (enforce verbally) ==
 - date_of_birth: If they give a future date, say:
   "That date appears to be in the future — could you please confirm your date of birth?"
@@ -290,7 +294,7 @@ def chat(conversation_history: list) -> dict:
     # Disable tool calling if a successful registration already happened
     already_registered = any(
         msg.get("role") == "tool" and
-        '"success": true' in msg.get("content", "")
+        '"success": true' in msg.get("content", "").lower()
         for msg in conversation_history
     )
     tool_choice = "none" if already_registered else "auto"

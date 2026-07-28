@@ -152,12 +152,14 @@ def _utc_now() -> str:
 
 
 def validate_name(value: str, field: str) -> str:
-    """1-50 chars, alphabetic + hyphens/apostrophes only."""
+    """1-50 chars, alphabetic + hyphens/apostrophes/spaces only.
+    Spaces allowed to support names like 'Mary Jane' or initials like 'M Tahha'.
+    """
     value = value.strip()
     if not value or len(value) > 50:
         raise ValueError(f"{field} must be 1-50 characters")
-    if not re.match(r"^[A-Za-z\-']+$", value):
-        raise ValueError(f"{field} can only contain letters, hyphens, and apostrophes")
+    if not re.match(r"^[A-Za-z\-' ]+$", value):
+        raise ValueError(f"{field} can only contain letters, hyphens, apostrophes, and spaces")
     return value
 
 
