@@ -388,6 +388,7 @@ def _execute_vapi_function(func_name: str, parameters: dict) -> str:
             return (
                 f"It looks like we already have a record for "
                 f"{existing['first_name']} {existing['last_name']} with that phone number. "
+                f"Their patient ID is {existing['patient_id']}. "
                 f"Would you like to update your existing information instead?"
             )
 
@@ -397,9 +398,10 @@ def _execute_vapi_function(func_name: str, parameters: dict) -> str:
 
         try:
             patient = create_patient(cleaned)
+            pid = patient["patient_id"]
             return (
                 f"You're all set, {patient['first_name']}! "
-                f"Your registration is complete. "
+                f"Your registration is complete. Your patient ID is {pid}. "
                 f"Would you also like to schedule your first appointment today?"
             )
         except Exception as e:
@@ -425,6 +427,22 @@ def _execute_vapi_function(func_name: str, parameters: dict) -> str:
 
     elif func_name == "schedule_appointment":
         patient_id = parameters.get("patient_id")
+
+        # If patient_id missing, try to find by phone number
+        if not patient_id:
+            phone = parameters.get("phone_number", "")
+            if phone:
+                import re as _re
+                existing = get_patient_by_phone(_re.sub(r"\D", "", phone))
+                if existing:
+                    patient_id = existing["patient_id"]
+
+        # Last resort: get most recently registered patient
+        if not patient_id:
+            all_pts = get_all_patients()
+            if all_pts:
+                patient_id = all_pts[0]["patient_id"]  # most recent first
+
         if not patient_id:
             return "I need your patient ID to schedule an appointment."
         try:
