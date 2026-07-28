@@ -1,93 +1,175 @@
 """
 tests/test_agent.py
 Interactive terminal test — simulates a patient registration voice call.
-No phone or Vapi needed.
+No phone or Vapi needed. Type responses as if you are the patient.
 
 Usage:
     cd "AI-Voice Agent"
     python tests/test_agent.py
+
+Tips:
+    - Type 'quit' or 'exit' to end
+    - Say 'Hablo español' to test Spanish support
+    - Use an existing phone number to test duplicate detection
+    - Existing demo phones: 5551234567 (Jane Doe), 5559876543 (Carlos Rivera)
 """
 import os
 import sys
 
-# Add parent directory to path so we can import project modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from database import init_db
+from database import init_db, get_all_patients
 from agent import chat
 
 init_db()
 
 
+def print_header():
+    print()
+    print("=" * 60)
+    print("  MediBook Voice Agent — Interactive Registration Test")
+    print("=" * 60)
+    print("  Type your responses as if you are calling the clinic.")
+    print("  Commands: 'quit' to exit | 'db' to view saved patients")
+    print()
+    print("  Tips:")
+    print("    - Say 'Hablo español' to switch to Spanish")
+    print("    - Use phone 5551234567 to test duplicate detection")
+    print("    - After registration, AI will offer to schedule appointment")
+    print("=" * 60)
+    print()
+
+
+def print_db_status():
+    """Show current patients in DB."""
+    patients = get_all_patients()
+    print(f"\n  --- DB Status: {len(patients)} active patient(s) ---")
+    for p in patients:
+        print(f"  • {p['first_name']} {p['last_name']} | {p['phone_number']} | {p['city']}, {p['state']}")
+    print()
+
+
 def simulate_call():
-    print("=" * 55)
-    print("🧪 MediBook Voice Agent — Patient Registration Test")
-    print("   Type your message. Type 'quit' to exit.")
-    print("=" * 55)
+    print_header()
+    print_db_status()
 
     history = []
     registration_done = False
+    appointment_done = False
+    turn = 0
 
     # AI greeting
     first_result = chat([{"role": "user", "content": "Hello"}])
-    print(f"\n🤖 AI: {first_result['reply']}")
+    print(f"🤖 AI: {first_result['reply']}")
+    if first_result.get("language") == "es":
+        print("   🌐 [Spanish mode active]")
+
     history.append({"role": "user", "content": "Hello"})
     history.append({"role": "assistant", "content": first_result['reply']})
 
     while True:
         user_input = input("\n👤 You: ").strip()
+
+        # Commands
         if user_input.lower() in ("quit", "exit", "q"):
             print("\n👋 Test ended.")
+            print_db_status()
             break
+
+        if user_input.lower() == "db":
+            print_db_status()
+            continue
+
         if not user_input:
             continue
 
+        turn += 1
         history.append({"role": "user", "content": user_input})
         result = chat(history)
 
         print(f"\n🤖 AI: {result['reply']}")
-        if result.get("language") == "es":
-            print("   🌐 [Responding in Spanish]")
 
-        # Add tool messages to history (prevents double registration)
+        # Language indicator
+        if result.get("language") == "es":
+            print("   🌐 [Spanish mode]")
+
+        # Add tool messages to history (critical — prevents double registration)
         for extra_msg in result.get("history_additions", []):
             history.append(extra_msg)
 
-        if result["function_called"] and not registration_done:
-            fn = result["function_name"]
+        # Handle function results
+        if result["function_called"]:
+            fn        = result["function_name"]
             fn_result = result.get("function_result", {})
+            fn_args   = result.get("function_args", {})
 
-            if fn == "register_patient" and fn_result.get("success"):
+            # ── Successful registration ───────────────────────
+            if fn == "register_patient" and fn_result.get("success") and not registration_done:
                 registration_done = True
-                args = result["function_args"]
-                print(f"\n✅ Patient Registered!")
-                print(f"   Patient ID : {fn_result.get('patient_id', 'N/A')}")
-                print(f"   Name       : {args.get('first_name')} {args.get('last_name')}")
-                print(f"   DOB        : {args.get('date_of_birth')}")
-                print(f"   Sex        : {args.get('sex')}")
-                print(f"   Phone      : {args.get('phone_number')}")
-                print(f"   Address    : {args.get('address_line_1')}, {args.get('city')}, {args.get('state')} {args.get('zip_code')}")
+                print()
+                print("  ┌─────────────────────────────────────────┐")
+                print("  │  ✅  PATIENT REGISTERED SUCCESSFULLY    │")
+                print("  ├─────────────────────────────────────────┤")
+                print(f"  │  ID      : {fn_result.get('patient_id','')[:36]}")
+                print(f"  │  Name    : {fn_args.get('first_name','')} {fn_args.get('last_name','')}")
+                print(f"  │  DOB     : {fn_args.get('date_of_birth','')}")
+                print(f"  │  Sex     : {fn_args.get('sex','')}")
+                print(f"  │  Phone   : {fn_args.get('phone_number','')}")
+                print(f"  │  Address : {fn_args.get('address_line_1','')}")
+                print(f"  │            {fn_args.get('city','')}, {fn_args.get('state','')} {fn_args.get('zip_code','')}")
+                if fn_args.get("insurance_provider"):
+                    print(f"  │  Insur.  : {fn_args.get('insurance_provider')}")
+                if fn_args.get("preferred_language") and fn_args.get("preferred_language") != "English":
+                    print(f"  │  Lang    : {fn_args.get('preferred_language')}")
+                print("  └─────────────────────────────────────────┘")
+                print()
 
+            # ── Duplicate phone ───────────────────────────────
             elif fn == "register_patient" and fn_result.get("duplicate_found"):
-                print(f"\n⚠️  Duplicate: {fn_result.get('message')}")
+                print()
+                print(f"  ⚠️  DUPLICATE DETECTED")
+                print(f"     Existing: {fn_result.get('existing_first_name')} {fn_result.get('existing_last_name')}")
+                print(f"     ID: {fn_result.get('existing_patient_id','')[:36]}")
+                print()
 
+            # ── Validation failed ─────────────────────────────
+            elif fn == "register_patient" and not fn_result.get("success") and not fn_result.get("duplicate_found"):
+                errs = fn_result.get("validation_errors", [])
+                if errs:
+                    print()
+                    print(f"  ⚠️  VALIDATION ERRORS: {'; '.join(errs)}")
+                    print()
+
+            # ── Patient updated ───────────────────────────────
             elif fn == "update_patient" and fn_result.get("success"):
-                print(f"\n✅ Patient Updated! ID: {fn_result.get('patient_id')}")
+                print()
+                print(f"  ✅  PATIENT UPDATED | ID: {fn_result.get('patient_id','')[:36]}")
+                print()
 
-            elif fn == "schedule_appointment" and fn_result.get("success"):
-                print(f"\n📅 Appointment Scheduled!")
-                print(f"   Type : {fn_result.get('appointment_type')}")
-                print(f"   Date : {fn_result.get('preferred_date')}")
-                print(f"   Time : {fn_result.get('preferred_time')}")
+            # ── Appointment scheduled ─────────────────────────
+            elif fn == "schedule_appointment" and fn_result.get("success") and not appointment_done:
+                appointment_done = True
+                print()
+                print("  ┌─────────────────────────────────────────┐")
+                print("  │  📅  APPOINTMENT SCHEDULED              │")
+                print("  ├─────────────────────────────────────────┤")
+                print(f"  │  Type : {fn_result.get('appointment_type','')}")
+                print(f"  │  Date : {fn_result.get('preferred_date','')}")
+                print(f"  │  Time : {fn_result.get('preferred_time','')}")
+                print("  └─────────────────────────────────────────┘")
+                print()
 
         history.append({"role": "assistant", "content": result["reply"]})
 
 
 if __name__ == "__main__":
     if not os.getenv("GROQ_API_KEY"):
-        print("❌ GROQ_API_KEY not set in .env")
+        print()
+        print("  ❌ GROQ_API_KEY not set in .env")
+        print("     Get a free key at: https://console.groq.com")
+        print()
         sys.exit(1)
     simulate_call()
