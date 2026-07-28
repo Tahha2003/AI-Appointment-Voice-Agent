@@ -3,20 +3,43 @@
 
 ---
 
-## 🚀 Features
+## Live Demo
 
-- **Voice Patient Registration** — Patients call in, AI collects full demographic info conversationally
-- **18-Field Data Model** — Covers all standard US healthcare patient demographics
-- **Input Validation** — Server-side validation for every field (phone, DOB, state, ZIP, etc.)
-- **Duplicate Detection** — Recognizes returning callers by phone number, offers to update record
-- **Soft Delete** — Patient records are never hard-deleted, only marked with `deleted_at`
-- **Full REST API** — CRUD endpoints with consistent JSON envelope and proper HTTP codes
-- **LLM-Powered** — Groq Llama 3.3-70b for fast, natural conversation (free tier)
-- **Text Testing** — Built-in `/chat` endpoint to test AI without a phone call
+| Resource | URL |
+|----------|-----|
+| API Base URL | https://ai-appointment-voice-agent.onrender.com |
+| Patients API | https://ai-appointment-voice-agent.onrender.com/patients |
+| Appointments | https://ai-appointment-voice-agent.onrender.com/appointments |
+| Transcripts | https://ai-appointment-voice-agent.onrender.com/transcripts |
+| Dashboard | https://ai-appointment-voice-agent.onrender.com/dashboard |
+| Voice Agent | Vapi browser Talk button (see Vapi Setup below) |
+
+> **Note:** Hosted on Render free tier — first request may take ~50 seconds to wake up.
 
 ---
 
-## 🛠️ Tech Stack
+## Features
+
+### Core Requirements
+- **Voice Patient Registration** — AI collects all 18 US demographic fields conversationally
+- **Natural Conversation** — Powered by Groq Llama 3.3-70b, feels like a human intake coordinator
+- **Persistent Database** — SQLite with full CRUD, UUID primary keys, soft delete
+- **REST API** — Full `/patients` CRUD with filters, proper HTTP codes, consistent JSON envelope
+- **Input Validation** — Server-side validation for all fields (phone, DOB, state, ZIP, sex, name)
+- **Confirmation** — Agent reads back all info before saving
+- **Error Handling** — Invalid DOB, short phone, invalid state re-prompted specifically
+
+### Bonus Features
+- **Duplicate Detection** — Recognizes returning callers by phone, offers to update instead of create
+- **Appointment Scheduling** — After registration, offers to book first appointment
+- **Multi-language** — Say "Hablo español" to switch to Spanish
+- **Call Transcripts** — Auto-saved on call end, linked to patient record
+- **Dashboard** — Web UI showing patients, appointments, transcripts
+- **Automated Tests** — 183 tests across 3 test files (no LLM calls needed)
+
+---
+
+## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -28,59 +51,72 @@
 | Database | SQLite |
 | Hosting | Render |
 
----
-
-## 📦 Project Structure
-
-```
-AI-Voice Agent/
-├── main.py          # FastAPI entry point, DB init, lifespan
-├── routes.py        # All API endpoints
-│   ├── GET/POST/PUT/DELETE /patients
-│   ├── POST /webhook          (Vapi call events)
-│   ├── POST /vapi-function    (Vapi tool execution)
-│   └── POST /chat             (text testing)
-├── agent.py         # Groq LLM + function calling logic
-│   ├── register_patient() tool
-│   └── update_patient() tool
-├── database.py      # SQLite schema, validation, CRUD
-├── test_agent.py    # Terminal chat test (no phone needed)
-├── requirements.txt
-├── render.yaml      # Render deployment config
-├── .python-version  # 3.11.9
-└── .env.example
-```
+**Why this stack:**
+- Vapi abstracts all telephony/STT/TTS complexity, letting focus stay on LLM prompt and data layer
+- Groq provides ultra-fast free inference with native function/tool calling support
+- FastAPI + SQLite = minimal setup, zero external dependencies, deployable in minutes
+- Render = straightforward Python deployment with environment variable management
 
 ---
 
-## 🗂️ Patient Data Model
+## Patient Data Model
 
 | Field | Type | Required | Validation |
 |-------|------|----------|------------|
 | patient_id | UUID | Auto | Auto-generated |
-| first_name | String | ✅ | 1-50 chars, alpha + hyphens/apostrophes |
-| last_name | String | ✅ | Same as first_name |
-| date_of_birth | String | ✅ | MM/DD/YYYY, not in future |
-| sex | Enum | ✅ | Male / Female / Other / Decline to Answer |
-| phone_number | String | ✅ | US 10-digit (formatted or raw) |
-| email | String | — | Valid email format |
-| address_line_1 | String | ✅ | Street address |
-| address_line_2 | String | — | Apt/Suite |
-| city | String | ✅ | 1-100 chars |
-| state | String | ✅ | Valid 2-letter US abbreviation |
-| zip_code | String | ✅ | 5-digit or ZIP+4 |
-| insurance_provider | String | — | Company name |
-| insurance_member_id | String | — | Alphanumeric ID |
-| preferred_language | String | — | Default: English |
-| emergency_contact_name | String | — | Full name |
-| emergency_contact_phone | String | — | US 10-digit |
+| first_name | String | Yes | 1-50 chars, alpha + hyphens/apostrophes/spaces |
+| last_name | String | Yes | Same as first_name |
+| date_of_birth | String | Yes | MM/DD/YYYY, not in future |
+| sex | Enum | Yes | Male / Female / Other / Decline to Answer |
+| phone_number | String | Yes | US 10-digit (formatted or raw) |
+| email | String | No | Valid email format |
+| address_line_1 | String | Yes | Street address |
+| address_line_2 | String | No | Apt/Suite |
+| city | String | Yes | City name |
+| state | String | Yes | Valid 2-letter US abbreviation |
+| zip_code | String | Yes | 5-digit or ZIP+4 |
+| insurance_provider | String | No | Company name |
+| insurance_member_id | String | No | Alphanumeric ID |
+| preferred_language | String | No | Default: English |
+| emergency_contact_name | String | No | Full name |
+| emergency_contact_phone | String | No | US 10-digit |
 | created_at | Timestamp | Auto | UTC |
 | updated_at | Timestamp | Auto | UTC |
 | deleted_at | Timestamp | Auto | NULL = active (soft delete) |
 
 ---
 
-## 📋 API Endpoints
+## System Architecture
+
+```
+Patient calls → Vapi (STT: voice → text)
+                    ↓
+              POST /webhook
+                    ↓
+         Groq Llama 3.3-70b (LLM)
+         Collects 9 required fields
+         + optional fields
+                    ↓
+         Reads back info → confirms
+                    ↓
+    register_patient() tool call
+                    ↓
+          POST /vapi-function
+                    ↓
+   Duplicate check → Validation → SQLite
+                    ↓
+    "You're all set, [Name]!" (TTS → voice)
+                    ↓
+    Offer appointment scheduling
+                    ↓
+    schedule_appointment() tool call
+                    ↓
+    Appointment saved → Goodbye
+```
+
+---
+
+## API Endpoints
 
 ### Patients
 | Method | Endpoint | Description |
@@ -90,191 +126,167 @@ AI-Voice Agent/
 | GET | `/patients?phone_number=5551234567` | Filter by phone |
 | GET | `/patients?date_of_birth=03/15/1990` | Filter by DOB |
 | GET | `/patients/{id}` | Get patient by UUID |
-| POST | `/patients` | Create patient (returns 409 on duplicate phone) |
+| POST | `/patients` | Create (409 on duplicate phone) |
 | PUT | `/patients/{id}` | Partial update |
 | DELETE | `/patients/{id}` | Soft delete |
+
+### Appointments
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/appointments` | All appointments |
+| GET | `/patients/{id}/appointments` | By patient |
+| POST | `/patients/{id}/appointments` | Create |
+
+### Transcripts
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/transcripts` | All transcripts |
+| GET | `/patients/{id}/transcripts` | By patient |
 
 ### Voice
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/webhook` | Vapi call lifecycle events |
-| POST | `/vapi-function` | Vapi tool execution |
-
-### Testing
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Health check + endpoint map |
-| POST | `/chat` | Text-based AI chat (no phone needed) |
-| DELETE | `/chat/{session_id}` | Clear session |
+| POST | `/webhook` | Vapi call events |
+| POST | `/vapi-function` | Tool execution |
+| POST | `/chat` | Text testing (no phone) |
 
 ### Response Format
-All endpoints return:
 ```json
 { "data": {...}, "error": null }
 ```
-
 HTTP codes: `200`, `201`, `400`, `404`, `409`, `422`, `500`
 
 ---
 
-## 🏃‍♂️ Quick Start
+## Project Structure
 
-### 1. Clone & setup
+```
+AI-Voice Agent/
+├── main.py            # FastAPI entry point, /dashboard route
+├── routes.py          # All API endpoints + Vapi webhook handlers
+├── agent.py           # Groq LLM + 3 tools (register, update, schedule)
+├── database.py        # SQLite schema, validation, CRUD
+├── dashboard.html     # Web UI (patients, appointments, transcripts)
+├── requirements.txt   # 5 packages only
+├── render.yaml        # Render deployment config
+├── .python-version    # 3.11.9
+├── .env.example       # Environment variable template
+└── tests/
+    ├── README.md          # Full testing guide for evaluators
+    ├── test_validation.py # 47 validation tests (no LLM)
+    ├── test_imports.py    # 60 integration tests (no LLM)
+    ├── auto_test.py       # 76 automated E2E tests, 5 demo patients (no LLM)
+    └── test_agent.py      # Interactive terminal chat (uses Groq)
+```
+
+---
+
+## Quick Start
+
 ```bash
+# Clone
 git clone https://github.com/Tahha2003/AI-Appointment-Voice-Agent.git
 cd AI-Appointment-Voice-Agent
 
+# Setup
 python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # Mac/Linux
-
+venv\Scripts\activate
 pip install -r requirements.txt
 
+# Configure
 copy .env.example .env
-# Add your GROQ_API_KEY to .env
-```
+# Add GROQ_API_KEY (free at console.groq.com)
 
-### 2. Run server
-```bash
+# Run
 python main.py
 # → http://localhost:8000
-```
 
-### 3. Test in terminal (no phone needed)
-```bash
-python test_agent.py
-```
-
-### 4. Test API
-```bash
-# Health check
-curl http://localhost:8000/
-
-# List patients (2 seed records included)
-curl http://localhost:8000/patients
-
-# Text chat test
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "test1", "message": "Hello"}'
-
-# Create patient
-curl -X POST http://localhost:8000/patients \
-  -H "Content-Type: application/json" \
-  -d '{
-    "first_name": "John",
-    "last_name": "Smith",
-    "date_of_birth": "01/15/1985",
-    "sex": "Male",
-    "phone_number": "5550001234",
-    "address_line_1": "789 Pine Street",
-    "city": "Chicago",
-    "state": "IL",
-    "zip_code": "60601"
-  }'
+# Test (no phone needed)
+python tests/test_agent.py        # interactive chat
+python tests/test_validation.py   # 47 validation tests
+python tests/test_imports.py      # 60 integration tests
+python tests/auto_test.py         # 76 automated E2E tests
 ```
 
 ---
 
-## 🔧 Environment Variables
+## Environment Variables
 
 ```env
-# Required
-GROQ_API_KEY=gsk_your-groq-key-here   # free at console.groq.com
-
-# Optional
-VAPI_API_KEY=your-vapi-key-here
-DB_PATH=/tmp/patients.db               # use /tmp on Render
-BACKEND_URL=https://your-app.onrender.com
+GROQ_API_KEY=gsk_your-key-here        # free at console.groq.com
+VAPI_API_KEY=your-vapi-key-here       # from vapi.ai
+DB_PATH=/opt/render/project/src/patients.db  # Render persistent path
 ```
 
 ---
 
-## 🚢 Deployment (Render)
+## Phone Number Note
 
-1. Push to GitHub
-2. [render.com](https://render.com) → New Web Service → connect repo
-3. Build: `pip install -r requirements.txt`
-4. Start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. Env vars: `GROQ_API_KEY`, `DB_PATH=/tmp/patients.db`
+Vapi US phone number provisioning is **not available for all regions** (including Pakistan-based accounts). This is a Vapi platform restriction, not a code issue.
 
-Live URL: `https://ai-appointment-voice-agent.onrender.com`
+**All testing was done using Vapi's browser-based Talk button** — which is fully functional and demonstrates the complete end-to-end voice agent experience:
+- Real-time Speech-to-Text (Soniox)
+- Natural LLM conversation (Groq Llama 3.3-70b)
+- Function calling (register_patient, update_patient, schedule_appointment)
+- Database persistence (SQLite)
+- Call transcript auto-save
 
----
-
-## 📞 Vapi Configuration
-
-1. [vapi.ai](https://vapi.ai) → Create Assistant
-2. **First Message:** `Hello! Thank you for calling MediBook Clinic. I'm here to help register you as a new patient. May I start with your first name?`
-3. **Model:** Groq → `llama-3.3-70b-versatile`
-4. **Advanced → Server URL:** `https://your-url.onrender.com/webhook`
-5. **Tools:** Create `register_patient` and `update_patient` tools
-   - Server URL: `https://your-url.onrender.com/vapi-function`
-6. **Publish** → use browser **Talk** button to test
-
-> Note: Vapi US phone number provisioning is not available for all regions.
-> The browser-based Talk button is fully functional for testing and demo purposes.
+**How to test:** Vapi Dashboard → Assistants → **Talk** button (top right of assistant page)
 
 ---
 
-## 🔁 How It Works
+## Vapi Configuration
 
-```
-Patient calls → Vapi (STT: voice → text)
-                    ↓
-              POST /webhook
-                    ↓
-          Groq Llama 3.3 (LLM)
-          Collects 9 required fields
-          + optional fields
-                    ↓
-          Reads back info → confirms
-                    ↓
-       register_patient() tool call
-                    ↓
-          POST /vapi-function
-                    ↓
-     Duplicate check → Validation → SQLite
-                    ↓
-     "You're all set, [Name]!" (TTS → voice)
+1. Sign up at [vapi.ai](https://vapi.ai)
+2. **Create Assistant:**
+   - First Message: `Hello! Thank you for calling MediBook Clinic. I'm here to help register you. May I start with your first name?`
+   - Model: Groq → `llama-3.3-70b-versatile`
+   - Advanced → Server URL: `https://ai-appointment-voice-agent.onrender.com/webhook`
+3. **Create 3 Tools** (each with Server URL `https://ai-appointment-voice-agent.onrender.com/vapi-function`):
+   - `register_patient` — all 9 required fields
+   - `update_patient` — requires patient_id
+   - `schedule_appointment` — requires patient_id, type, date, time
+4. **Attach tools to assistant → Publish**
+5. Use browser **Talk** button to test (US phone provisioning not available in all regions)
+
+---
+
+## Running Tests
+
+```bash
+# All non-LLM tests (instant, no API key needed)
+python tests/test_validation.py && python tests/test_imports.py && python tests/auto_test.py
+
+# Expected: 183 passed, 0 failed
+
+# Interactive voice simulation (requires GROQ_API_KEY)
+python tests/test_agent.py
 ```
 
----
-
-## 🔐 Security
-
-- API keys in environment variables only — never in source code
-- `.env` excluded from git via `.gitignore`
-- Server-side input validation on all endpoints
-- Soft delete — records preserved, never hard-deleted
-- HTTPS enforced on Render
+See `tests/README.md` for full evaluator guide with expected outputs.
 
 ---
 
-## ⚠️ Known Limitations & Trade-offs
+## Known Limitations & Trade-offs
 
-- **SQLite on Render** — data persists across requests but resets on redeploy (use `DB_PATH=/tmp/patients.db`)
-- **No authentication** — API endpoints are open; production would require API key or JWT
-- **No HIPAA compliance** — this is a technical demo, not a production healthcare system
-- **Phone number not provisioned** — Vapi US numbers not available in all regions; browser Talk button used for demo
+- **SQLite on Render free tier** — data resets on redeploy (acceptable for demo; production would use PostgreSQL/Supabase)
+- **No US phone number** — Vapi phone provisioning is not available for non-US/Pakistan-based accounts. This is a Vapi platform restriction. All testing and demo was done using **Vapi's browser-based Talk button** which provides the same full voice experience (STT + LLM + TTS + function calling). The system works end-to-end — only the phone number provisioning step is blocked by region.
+- **No authentication** — API endpoints are open; production would add JWT/API key auth
+- **No HIPAA compliance** — demo only, not a production healthcare system; no real patient data stored
 
 ---
 
-## 🔮 Next Steps
+## Next Steps (if given more time)
 
-- Add JWT authentication to REST API
 - Migrate to PostgreSQL (Supabase) for persistent cloud storage
-- Add call transcript storage linked to patient record
-- Implement appointment scheduling after registration
-- Add multi-language support (Spanish via `Hablo español` trigger)
-- Dashboard UI to view registered patients
+- Add JWT authentication to REST API
+- Store full call transcripts linked to patient records
+- Add appointment reminder system (SMS via Twilio)
+- Multi-language support expansion (French, Arabic)
+- HIPAA-compliant data handling for production
 
 ---
 
-## 📄 License
+## License
 
 MIT License
-
-## 🤝 Contributing
-
-Pull requests welcome.
